@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from .constants import (
     CANONICAL_WEAPON_CATEGORIES,
@@ -16,6 +17,7 @@ from .constants import (
 )
 from .models import PackageDoc
 from .utils import clean_label
+
 
 def clean_weapon_category(raw: str) -> str:
     label = clean_label(raw)
@@ -60,6 +62,7 @@ def category_from_tree(tree_doc: PackageDoc | None, weapon_doc: PackageDoc) -> s
         return clean_weapon_category(parts[melee_index + 1])
     except (ValueError, IndexError):
         return clean_weapon_category(weapon_doc.package_id)
+
 
 def stance_display_name(stance_id: str) -> str:
     if not stance_id:

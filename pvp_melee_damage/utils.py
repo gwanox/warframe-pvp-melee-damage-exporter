@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import copy
 import re
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from .constants import (
     CATEGORY_LIMITED_DAMAGE_COMBO_CONTEXTS,
     COMBO_CONTEXT_LABELS,
-    IGNORED_DAMAGE_COMBO_CONTEXTS,
     SEVERITY_ORDER,
 )
+
 
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     result = copy.deepcopy(base)
@@ -42,6 +42,7 @@ def decimal_number(value: Any) -> Decimal:
 def round_half_up_decimal(value: Decimal) -> int:
     return int(value.to_integral_value(rounding=ROUND_HALF_UP))
 
+
 def clean_label(raw: str) -> str:
     raw = raw.strip().replace("\\", "/").split("/")[-1]
     raw = re.sub(r"\.(png|jpg|jpeg|tga|webp)$", "", raw, flags=re.IGNORECASE)
@@ -52,6 +53,7 @@ def clean_label(raw: str) -> str:
     raw = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", raw)
     raw = re.sub(r"\s+", " ", raw).strip()
     return raw or ""
+
 
 def combine_notes(*notes: str) -> str:
     seen: set[str] = set()
@@ -78,6 +80,7 @@ def combo_context_allowed_for_category(combo_context: Any, weapon_category: str)
 def split_note_parts(note: Any) -> list[str]:
     return [part.strip() for part in str(note or "").split(";") if part.strip()]
 
+
 def rows_to_matrix(headers: list[str], rows: list[dict[str, Any]]) -> list[list[Any]]:
     return [[row.get(header, "") for header in headers] for row in rows]
 
@@ -98,9 +101,10 @@ def get_or_create_key(
     mapping: dict[tuple[Any, ...], int],
     rows: list[dict[str, Any]],
     key: tuple[Any, ...],
-    make_row: Any,
+    key_field: str,
+    values: dict[str, Any],
 ) -> int:
     if key not in mapping:
         mapping[key] = len(mapping) + 1
-        rows.append(make_row(mapping[key]))
+        rows.append({key_field: mapping[key], **values})
     return mapping[key]

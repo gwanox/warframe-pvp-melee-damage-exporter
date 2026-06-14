@@ -11,6 +11,7 @@ from .constants import MELEE_ROOT_PACKAGE
 from .models import PackageDoc
 from .utils import deep_merge
 
+
 def normalize_package_ref(ref: str, context_doc: PackageDoc | None = None) -> str:
     ref = ref.strip()
     if ref.endswith(".json"):
@@ -95,12 +96,20 @@ class Resolver:
 
     def load_ref(self, ref: str, context_doc: PackageDoc | None = None) -> PackageDoc | None:
         if not isinstance(ref, str) or not ref.strip():
-            self.warn("warning", context_doc.package_id if context_doc else "<root>", "Tried to resolve an empty ref")
+            self.warn(
+                "warning",
+                context_doc.package_id if context_doc else "<root>",
+                "Tried to resolve an empty ref",
+            )
             return None
 
         package = normalize_package_ref(ref, context_doc)
         path = package_to_path(self.root, package)
         doc = self.load_path(path)
         if doc is None:
-            self.warn("warning", package, f"Unresolved ref from {context_doc.package_id if context_doc else 'root'}")
+            self.warn(
+                "warning",
+                package,
+                f"Unresolved ref from {context_doc.package_id if context_doc else 'root'}",
+            )
         return doc

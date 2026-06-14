@@ -5,11 +5,16 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "warframe-pvp-melee-damage"
 version = "0.1.0"
-description = "Export Warframe PvP melee attack and slam damage metadata to pivot-ready Excel workbooks."
+description = "Export Warframe PvP melee attack and slam damage metadata to analysis-ready Excel workbooks."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.11",
 ]
 
 [project.scripts]
@@ -17,3 +22,11 @@ wf-pvp-melee-damage = "pvp_melee_damage.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["pvp_melee_damage*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

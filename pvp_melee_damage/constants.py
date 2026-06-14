@@ -19,14 +19,18 @@ CORE_PVP_SLAM_EVENTS = {
 CORE_PVP_SLAM_EVENT_ORDER = tuple(CORE_PVP_SLAM_EVENTS)
 CORE_PVP_SLAM_EVENTS_BY_KIND = {label: event for event, label in CORE_PVP_SLAM_EVENTS.items()}
 SLAM_CONTEXT_SOURCE = "weapon PvpSlams TriggeringAnimEvent"
-IGNORED_DAMAGE_COMBO_CONTEXTS = {
+ATTACK_SET_MAPS = (
+    ("unequipped", "UnequippedAttackSets"),
+    ("equipped", "EquippedAttackSets"),
+)
+COMBO_MULTIPLIER_ATTACK_CONTEXTS = {"CC_GROUND_HEAVY"}
+IGNORED_DAMAGE_COMBO_CONTEXTS: set[str] = set()
+CATEGORY_LIMITED_DAMAGE_COMBO_CONTEXTS: dict[str, set[str]] = {}
+UNCERTAIN_PVP_CONTEXTS = {
     "CC_ATTACK_BLOCKED",
     "CC_DOWNED_ENEMY",
+    "CC_GUARD_BROKEN",
     "CC_PARRY_HEAVY",
-    "CC_SLIDING",
-}
-CATEGORY_LIMITED_DAMAGE_COMBO_CONTEXTS = {
-    "CC_AIR_RIGHT": {"Tonfa"},
 }
 IGNORED_WEAPON_BASENAMES = {
     "CaptainVorCronusLongSword",
@@ -82,9 +86,19 @@ REMOVE_STANCELESS_ONLY_WEAPON_IDS = {
     *EMBEDDED_NO_STANCE_TREES,
 }
 SPECIAL_WEAPON_NOTES = {
-    "/Lotus/Weapons/Tenno/Melee/Swords/DarkSword/DarkSwordDaggerDuals": "Dual melee mode requires the dual-sword PvP stance; no-stance behavior belongs to heavy sword mode",
-    "/Lotus/Weapons/Tenno/Melee/Swords/DarkSword/DarkSwordDaggerSingle": "Forced include: heavy sword mode is PvP-usable despite AvailableOnPvp metadata",
+    "/Lotus/Weapons/Tenno/Melee/Swords/DarkSword/DarkSwordDaggerDuals": "Dual melee mode requires the dual-sword PvP stance; no-stance behavior belongs to heavy sword mode; PvP heavy slam is intentionally blank because PvpSlams omits HeavySlam and in-game testing found the dual-mode heavy slam glitches",
+    "/Lotus/Weapons/Tenno/Melee/Swords/DarkSword/DarkSwordDaggerSingle": "Forced include: heavy sword mode is PvP-usable despite AvailableOnPvp metadata; PvP heavy slam is intentionally blank because PvpSlams omits HeavySlam",
     "/Lotus/Weapons/Tenno/Melee/SwordsAndBoards/SundialSwordBoard/SundialBoardSword": "Unique aerial shield throw: SupportAirThrow=1 and PvP projectile ShieldProjectilePvP in weapon fire behavior",
+}
+KNOWN_MISSING_PVP_SLAM_WARNINGS = {
+    (
+        "/Lotus/Weapons/Tenno/Melee/Swords/DarkSword/DarkSwordDaggerDuals",
+        "HeavySlam",
+    ): "PvP Heavy Slam intentionally left blank: PvpSlams has no HeavySlam entry, in-game testing confirms the dual-mode heavy slam glitches, and PvE Slams.HeavySlam is not used as a fallback",
+    (
+        "/Lotus/Weapons/Tenno/Melee/Swords/DarkSword/DarkSwordDaggerSingle",
+        "HeavySlam",
+    ): "PvP Heavy Slam intentionally left blank: PvpSlams has no HeavySlam entry, and PvE Slams.HeavySlam is not used as a fallback",
 }
 STANCELESS_CATEGORY_NAMES = {"Broken War (stanceless)", "Paracesis (stanceless)"}
 ACTUAL_STANCE_NAME_ORDER = (
@@ -346,7 +360,13 @@ SEVERITY_ORDER = {"error": 0, "warning": 1, "ignored": 2, "note": 3}
 WEAPON_DIM_HEADERS = [
     "weapon_name",
     "weapon_category",
+    "attack_speed",
     "base_damage",
+    "impact",
+    "puncture",
+    "slash",
+    "elem",
+    "elem_dmg",
     "pvp_damage_multiplier",
     "quant",
     "quant_multiplier",
@@ -375,6 +395,10 @@ COMBO_DIM_HEADERS = [
     "combo",
     "attack_count",
     "hit_count",
+    "weapon_scope",
+    "weapon_count",
+    "weapon_names",
+    "note",
     "stance_id",
     "attack_set_combo_id",
     "combo_context",
@@ -406,6 +430,7 @@ COMBO_CONTEXT_ENUM_CONTEXTS = {
     "CC_GROUND_BRANCH_B",
     "CC_GROUND_BRANCH_C",
     "CC_GROUND_HEAVY",
+    "CC_GUARD_BROKEN",
     "CC_SLIDING",
     "CC_SLIDING_PVP",
     "CC_WALLRUN",
@@ -416,8 +441,9 @@ COMBO_CONTEXT_LABELS = {
     "CC_GROUND_BRANCH_B": "Forward + block combo",
     "CC_GROUND_BRANCH_C": "Block combo",
     "CC_GROUND_HEAVY": "Heavy attack",
+    "CC_GUARD_BROKEN": "Guard-broken attack",
     "CC_SLIDING": "Slide attack",
-    "CC_SLIDING_PVP": "PvP slide attack",
+    "CC_SLIDING_PVP": "Legacy PvP slide/charge context",
     "CC_AIR": "Aerial attack",
     "CC_AIR_RIGHT": "Aerial right attack",
     "CC_WALLRUN": "Wall attack",

@@ -13,10 +13,22 @@ from .constants import (
     PVP_STANCE_ROOT,
     WEAPON_SCAN_ROOT_PACKAGE,
 )
-from .damage import find_melee_impact
-from .labels import best_effort_weapon_name, category_from_tree, ignored_ai_weapon_basename, stance_display_name
+from .damage import (
+    find_melee_attack_speed,
+    find_melee_impact,
+    find_melee_initial_combo,
+    weapon_damage_components,
+)
+from .labels import (
+    best_effort_weapon_name,
+    category_from_tree,
+    ignored_ai_weapon_basename,
+    stance_display_name,
+)
 from .models import PackageDoc, StanceInfo, WeaponInfo
 from .resolver import Resolver
+from .skins import add_legacy_skin_variants
+
 
 def file_mentions_melee_sweep(path: Path) -> bool:
     try:
@@ -64,7 +76,9 @@ def discover_stances(resolver: Resolver) -> list[StanceInfo]:
 
         tags = set(doc.value.get("CompatibilityTags", []) or [])
         if not tree_package and not tags:
-            resolver.warn("warning", doc.package_id, "PvP stance has no tree package or compatibility tags")
+            resolver.warn(
+                "warning", doc.package_id, "PvP stance has no tree package or compatibility tags"
+            )
 
         stance_name = stance_display_name(doc.package_id)
         stances.append(
@@ -87,7 +101,9 @@ def discover_weapons(resolver: Resolver) -> list[WeaponInfo]:
 
     for path in iter_weapon_json_paths(resolver.root):
         if path.stem in IGNORED_WEAPON_BASENAMES:
-            resolver.warn("ignored", str(path.relative_to(resolver.root)), "Ignored not-in-game weapon file")
+            resolver.warn(
+                "ignored", str(path.relative_to(resolver.root)), "Ignored not-in-game weapon file"
+            )
             continue
 
         doc = resolver.load_path(path)
@@ -106,14 +122,20 @@ def discover_weapons(resolver: Resolver) -> list[WeaponInfo]:
         if value.get("AvailableOnPvp") != 1 and not force_pvp:
             continue
         if force_pvp and value.get("AvailableOnPvp") != 1:
-            resolver.warn("note", doc.package_id, "Forced include: Dark Split-Sword heavy sword mode is PvP-usable through stance category despite AvailableOnPvp metadata")
+            resolver.warn(
+                "note",
+                doc.package_id,
+                "Forced include: Dark Split-Sword heavy sword mode is PvP-usable through stance category despite AvailableOnPvp metadata",
+            )
 
         impact = find_melee_impact(value)
         if impact is None:
             continue
 
         if ignored_ai_weapon_basename(path.stem):
-            resolver.warn("ignored", str(path.relative_to(resolver.root)), "Ignored not-in-game weapon file")
+            resolver.warn(
+                "ignored", str(path.relative_to(resolver.root)), "Ignored not-in-game weapon file"
+            )
             continue
         if ignored_ai_weapon_basename(doc.package_id.rsplit("/", 1)[-1]):
             resolver.warn("ignored", doc.package_id, "Ignored not-in-game weapon package")
@@ -121,12 +143,39 @@ def discover_weapons(resolver: Resolver) -> list[WeaponInfo]:
 
         tree_ref = str(value.get("MeleeTreeType") or value.get("Stance") or "")
         if not tree_ref:
-            resolver.warn("warning", doc.package_id, "PvP melee weapon has no MeleeTreeType/Stance ref")
+            resolver.warn(
+                "warning", doc.package_id, "PvP melee weapon has no MeleeTreeType/Stance ref"
+            )
             continue
 
         tree_doc = resolver.load_ref(tree_ref, doc)
         category = category_from_tree(tree_doc, doc)
         attack_data, base_damage, pvp_multiplier = impact
+        attack_speed = find_melee_attack_speed(value)
+        initial_combo_count, initial_heavy_multiplier = find_melee_initial_combo(value)
+        impact_damage, puncture_damage, slash_damage, elem, elem_dmg = weapon_damage_components(
+            attack_data
+        )
+        if attack_speed is None:
+            resolver.warn(
+                "warning",
+                doc.package_id,
+                "PvP melee weapon has no attack speed on its melee behavior",
+            )
+        note = ""
+        if initial_combo_count:
+            note = (
+                f"Initial combo {initial_combo_count} gives a "
+                f"{initial_heavy_multiplier:g}x starting combo multiplier; applied to "
+                "heavy attacks and combo-enabled PvP heavy slams"
+            )
+            resolver.warn(
+                "note",
+                doc.package_id,
+                f"InitialHitCounter={initial_combo_count} produces a "
+                f"{initial_heavy_multiplier:g}x heavy-attack multiplier in PvP; "
+                "treated as a PvE-oriented mechanic carried into Conclave",
+            )
 
         weapons.append(
             WeaponInfo(
@@ -137,11 +186,20 @@ def discover_weapons(resolver: Resolver) -> list[WeaponInfo]:
                 tree_ref=tree_ref,
                 base_damage=base_damage,
                 pvp_multiplier=pvp_multiplier,
+                attack_speed=attack_speed,
+                impact=impact_damage,
+                puncture=puncture_damage,
+                slash=slash_damage,
+                elem=elem,
+                elem_dmg=elem_dmg,
                 attack_data=attack_data,
+                note=note,
+                initial_combo_count=initial_combo_count,
+                initial_heavy_multiplier=initial_heavy_multiplier,
             )
         )
 
-    return weapons
+    return add_legacy_skin_variants(weapons, resolver)
 
 
 def matching_stances(tree_doc: PackageDoc | None, stances: list[StanceInfo]) -> list[StanceInfo]:
@@ -154,7 +212,9 @@ def matching_stances(tree_doc: PackageDoc | None, stances: list[StanceInfo]) -> 
 
     for stance in stances:
         exact_tree = stance.tree_package == tree_doc.package_id
-        tag_match = bool(tree_tags and stance.compatibility_tags and tree_tags & stance.compatibility_tags)
+        tag_match = bool(
+            tree_tags and stance.compatibility_tags and tree_tags & stance.compatibility_tags
+        )
         if (exact_tree or tag_match) and stance.stance_id not in seen:
             matches.append(stance)
             seen.add(stance.stance_id)

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+
 @dataclass
 class PackageDoc:
     path: Path
@@ -24,7 +25,16 @@ class WeaponInfo:
     tree_ref: str
     base_damage: float
     pvp_multiplier: float
+    attack_speed: float | None
+    impact: float
+    puncture: float
+    slash: float
+    elem: str
+    elem_dmg: float
     attack_data: dict[str, Any]
+    note: str = ""
+    initial_combo_count: int = 0
+    initial_heavy_multiplier: float = 1.0
 
 
 @dataclass

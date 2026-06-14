@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
-from .constants import CORE_PVP_SLAM_EVENT_ORDER, CORE_PVP_SLAM_EVENTS, CORE_PVP_SLAM_EVENTS_BY_KIND
+from typing import Any
+
+from .combo import initial_combo_application_note, slam_combo_multiplier
+from .constants import (
+    CORE_PVP_SLAM_EVENT_ORDER,
+    CORE_PVP_SLAM_EVENTS,
+    CORE_PVP_SLAM_EVENTS_BY_KIND,
+    KNOWN_MISSING_PVP_SLAM_WARNINGS,
+)
 from .damage import calculate_final_damage, quant_info
 from .models import WeaponInfo
 from .resolver import Resolver
 from .utils import clean_label, combine_notes, number
+
 
 def pvp_slam_entries(weapon: WeaponInfo) -> list[dict[str, Any]]:
     slams = weapon.doc.value.get("PvpSlams", [])
@@ -34,11 +43,15 @@ def slam_note(slam: dict[str, Any]) -> str:
 def build_slam_rows(resolver: Resolver, weapons: list[WeaponInfo]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     noted_non_core_events: set[tuple[str, str]] = set()
+    noted_missing_core_events: set[tuple[str, str]] = set()
 
     for weapon in weapons:
+        source_weapon_id = weapon.doc.package_id
         quant_label, quant_multiplier, quant_units = quant_info(weapon.attack_data)
         if quant_units is not None and quant_units not in {31, 32, 33}:
-            resolver.warn("warning", weapon.weapon_id, f"Unusual physical quantization value: {quant_label}")
+            resolver.warn(
+                "warning", weapon.weapon_id, f"Unusual physical quantization value: {quant_label}"
+            )
 
         slams = pvp_slam_entries(weapon)
         if not slams:
@@ -55,14 +68,17 @@ def build_slam_rows(resolver: Resolver, weapons: list[WeaponInfo]) -> list[dict[
                 attack_data = {}
 
             if slam_kind is None:
-                non_core_key = (weapon.weapon_id, trigger_event)
-                if number(attack_data.get("Amount")) > 0 and non_core_key not in noted_non_core_events:
+                non_core_key = (source_weapon_id, trigger_event)
+                if (
+                    number(attack_data.get("Amount")) > 0
+                    and non_core_key not in noted_non_core_events
+                ):
                     # Unique impact events are not the standard aerial slam
                     # pair, so flag them for manual review instead of mixing
                     # them into the core slam damage rows.
                     resolver.warn(
                         "note",
-                        weapon.weapon_id,
+                        source_weapon_id,
                         f"Non-core PvP slam event {trigger_event} has AttackData.Amount={attack_data.get('Amount')}; not exported",
                     )
                     noted_non_core_events.add(non_core_key)
@@ -70,10 +86,11 @@ def build_slam_rows(resolver: Resolver, weapons: list[WeaponInfo]) -> list[dict[
 
             seen_core_events.add(trigger_event)
             atten = number(slam.get("BaseDamageAttenuation"), 1.0)
+            combo_multiplier = slam_combo_multiplier(weapon, slam)
             final_damage, _raw = calculate_final_damage(
                 weapon.base_damage,
                 weapon.pvp_multiplier,
-                atten,
+                atten * combo_multiplier,
                 quant_multiplier,
             )
 
@@ -96,13 +113,29 @@ def build_slam_rows(resolver: Resolver, weapons: list[WeaponInfo]) -> list[dict[
                     "damage_type": attack_data.get("Type", ""),
                     "proc_chance": number(attack_data.get("ProcChance")),
                     "forced_procs": forced_procs_text(attack_data),
-                    "note": slam_note(slam),
+                    "note": combine_notes(
+                        weapon.note,
+                        slam_note(slam),
+                        initial_combo_application_note(
+                            weapon,
+                            combo_multiplier,
+                            "heavy slam",
+                        ),
+                    ),
                 }
             )
 
         for trigger_event in CORE_PVP_SLAM_EVENT_ORDER:
             if trigger_event not in seen_core_events:
-                resolver.warn("warning", weapon.weapon_id, f"Missing PvP {CORE_PVP_SLAM_EVENTS[trigger_event]} entry")
+                missing_key = (source_weapon_id, trigger_event)
+                if missing_key in noted_missing_core_events:
+                    continue
+                message = KNOWN_MISSING_PVP_SLAM_WARNINGS.get(
+                    missing_key,
+                    f"Missing PvP {CORE_PVP_SLAM_EVENTS[trigger_event]} entry",
+                )
+                resolver.warn("warning", source_weapon_id, message)
+                noted_missing_core_events.add(missing_key)
 
     order = {kind: index for index, kind in enumerate(CORE_PVP_SLAM_EVENTS.values())}
     return sorted(
